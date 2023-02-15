@@ -28,7 +28,7 @@ func Sign(req *model.TokenReq) (tokenString string, err error) {
 
 	claims["tz"] = req.Timezone
 	claims["addr"] = req.Addr
-	claims["devid"] = req.Device
+	claims["devid"] = req.DeviceId
 
 	//log.Println("signing", claims)
 	tokenString, err = token.SignedString(secret)
