@@ -10,7 +10,7 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-var secret []byte
+var Secret []byte
 
 func Sign(req *model.TokenReq) (tokenString string, err error) {
 	token := jwt.New(jwt.SigningMethodHS256)
@@ -31,7 +31,7 @@ func Sign(req *model.TokenReq) (tokenString string, err error) {
 	claims["devid"] = req.DeviceId
 
 	//log.Println("signing", claims)
-	tokenString, err = token.SignedString(secret)
+	tokenString, err = token.SignedString(Secret)
 	//log.Println("token is", tokenString)
 	return
 }
@@ -42,7 +42,7 @@ func Decode(raw string) (devid string, addr string, t0 time.Time, t1 time.Time, 
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("error: jwt parsing")
 		}
-		return secret, nil
+		return Secret, nil
 	})
 
 	if err != nil {
