@@ -10,9 +10,12 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
-var Secret []byte
+var (
+	Secret      []byte
+	UserTimeout = time.Hour
+)
 
-func Sign(req *model.TokenReq) (tokenString string, err error) {
+func SignKey(req *model.TokenReq) (tokenString string, err error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 
@@ -36,7 +39,7 @@ func Sign(req *model.TokenReq) (tokenString string, err error) {
 	return
 }
 
-func Decode(raw string) (devid string, addr string, t0 time.Time, t1 time.Time, err error) {
+func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Time, err error) {
 
 	token, err := jwt.Parse(raw, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -74,5 +77,40 @@ func Decode(raw string) (devid string, addr string, t0 time.Time, t1 time.Time, 
 		return
 	}
 	err = errors.New(fmt.Sprint("token claims failed or invalid", ok, token.Valid))
+	return
+}
+
+func SignUser(user string) (tokenString string, err error) {
+	token := jwt.New(jwt.SigningMethodHS256)
+	claims := token.Claims.(jwt.MapClaims)
+
+	claims["authorized"] = true
+
+	now := time.Now()
+	claims["nbf"] = now.Unix()
+	claims["exp"] = now.Add(UserTimeout).Unix()
+
+	claims["user"] = user
+
+	tokenString, err = token.SignedString(Secret)
+	return
+}
+
+func ValidateUser(raw string) (user string, err error) {
+	token, err := jwt.Parse(raw, func(token *jwt.Token) (interface{}, error) {
+		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, errors.New("error: jwt parsing")
+		}
+		return Secret, nil
+	})
+	if err != nil {
+		return
+	}
+	claims, ok := token.Claims.(jwt.MapClaims)
+	if ok && token.Valid {
+		user = claims["user"].(string)
+		return
+	}
+	err = fmt.Errorf("token invalid")
 	return
 }

@@ -1,11 +1,11 @@
 package model
 
-// called with tokenized SessionData
+// called tokenized
 type TokenReq struct {
 	Since    int64  `json:"since"` // GMT
 	Until    int64  `json:"until"` // GMT
 	Timezone string `json:"tz,omitempty"`
-	DeviceId int64  `json:"device"`
+	DeviceId string `json:"device"`
 	Addr     string `json:"addr,omitempty"`
 }
 
