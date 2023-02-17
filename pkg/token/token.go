@@ -80,7 +80,7 @@ func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Tim
 	return
 }
 
-func SignUser(user string) (tokenString string, err error) {
+func SignUserDevice(user string, devid string) (tokenString string, err error) {
 	token := jwt.New(jwt.SigningMethodHS256)
 	claims := token.Claims.(jwt.MapClaims)
 
@@ -91,12 +91,15 @@ func SignUser(user string) (tokenString string, err error) {
 	claims["exp"] = now.Add(UserTimeout).Unix()
 
 	claims["user"] = user
+	if len(devid) > 0 {
+		claims["devid"] = devid
+	}
 
 	tokenString, err = token.SignedString(Secret)
 	return
 }
 
-func ValidateUser(raw string) (user string, err error) {
+func ValidateUserDevice(raw string) (user string, devid string, err error) {
 	token, err := jwt.Parse(raw, func(token *jwt.Token) (interface{}, error) {
 		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("error: jwt parsing")
@@ -109,6 +112,10 @@ func ValidateUser(raw string) (user string, err error) {
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if ok && token.Valid {
 		user = claims["user"].(string)
+		d := claims["devid"]
+		if d != nil {
+			devid = d.(string)
+		}
 		return
 	}
 	err = fmt.Errorf("token invalid")
