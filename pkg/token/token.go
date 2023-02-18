@@ -52,6 +52,7 @@ func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Tim
 		if token == nil {
 			return
 		}
+		log.Println("token parse", err)
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if ok {
 			l, _ := time.LoadLocation(claims["tz"].(string))
@@ -59,7 +60,7 @@ func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Tim
 			t0 = time.Unix(int64(claims["nbf"].(float64)), 0).In(l)
 			t1 = time.Unix(int64(claims["exp"].(float64)), 0).In(l)
 
-			err = fmt.Errorf("the Toker is disabled now.\nThe valid period is\nsince %v\nuntil %v", t0, t1)
+			err = fmt.Errorf("the Key is disabled now.\nThe valid period is\nsince %v\nuntil %v", t0, t1)
 			return
 		}
 		return
