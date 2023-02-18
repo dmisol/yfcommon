@@ -48,6 +48,9 @@ func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Tim
 		return Secret, nil
 	})
 
+	if err == token.ErrTokenSignatureInvalid || err == token.ErrSignatureInvalid {
+		return
+	}
 	if err != nil {
 		if token == nil {
 			return
