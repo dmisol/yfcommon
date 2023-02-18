@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"github.com/dmisol/yfcommon/pkg/model"
@@ -49,13 +50,17 @@ func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Tim
 	})
 
 	if err == jwt.ErrTokenSignatureInvalid || err == jwt.ErrSignatureInvalid {
+		log.Println("token parse err", err)
 		return
 	}
 	if err != nil {
 		if token == nil {
 			return
 		}
-		log.Println("token parse", err)
+		log.Println("token parse 2", err)
+		if strings.Contains(err.Error(), "signature is invalid") {
+			return
+		}
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if ok {
 			l, _ := time.LoadLocation(claims["tz"].(string))
