@@ -3,12 +3,12 @@ package token
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
 
 	"github.com/dmisol/yfcommon/pkg/model"
-	"github.com/golang-jwt/jwt/v4"
+	//"github.com/golang-jwt/jwt/v4"
+	"github.com/golang-jwt/jwt/v5"
 )
 
 var (
@@ -16,57 +16,95 @@ var (
 	UserTimeout = time.Hour
 )
 
-func SignKey(req *model.TokenReq) (tokenString string, err error) {
-	token := jwt.New(jwt.SigningMethodHS256)
-	claims := token.Claims.(jwt.MapClaims)
+func SignSingle(req *model.TokenReq) (tokenString string, err error) {
 
 	if _, err = time.LoadLocation(req.Timezone); err != nil {
-		log.Println("LoadLocation", err)
+		fmt.Println("LoadLocation", err)
 		return
 	}
 
-	claims["authorized"] = true
+	claims := &model.GuestToken{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Unix(req.Until, 0)),
+			NotBefore: jwt.NewNumericDate(time.Unix(req.Since, 0)),
+		},
+		Tz:    req.Timezone,
+		Addr:  req.Addr,
+		DevId: req.DeviceId,
+	}
 
-	claims["nbf"] = req.Since
-	claims["exp"] = req.Until
-
-	claims["tz"] = req.Timezone
-	claims["addr"] = req.Addr
-	claims["devid"] = req.DeviceId
-
-	//log.Println("signing", claims)
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, *claims)
 	tokenString, err = token.SignedString(Secret)
-	//log.Println("token is", tokenString)
 	return
 }
 
-func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Time, err error) {
+func SignMultiple(addr string, devs map[string]string, since int64, until int64, tz string) (tokenString string, err error) {
+	if _, err = time.LoadLocation(tz); err != nil {
+		fmt.Println("LoadLocation", err)
+		return
+	}
+	if len(devs) == 0 {
+		err = fmt.Errorf("No devices to include")
+		return
+	}
+	if len(devs) == 1 {
+		for _, v := range devs {
+			tr := &model.TokenReq{
+				Since:    since,
+				Until:    until,
+				Timezone: tz,
+				Addr:     addr,
+				DeviceId: v,
+			}
+			return SignSingle(tr)
+		}
+	}
 
-	token, err := jwt.Parse(raw, func(token *jwt.Token) (interface{}, error) {
-		if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
-			return nil, errors.New("error: jwt parsing")
+	claims := &model.GuestToken{
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Unix(until, 0)),
+			NotBefore: jwt.NewNumericDate(time.Unix(since, 0)),
+		},
+		Tz:      tz,
+		Addr:    addr,
+		Devices: devs,
+	}
+
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, *claims)
+	tokenString, err = token.SignedString(Secret)
+	return
+}
+
+func DecodeKey(raw string) (devid string, devices map[string]string, addr string, t0 time.Time, t1 time.Time, err error) {
+
+	token, err := jwt.ParseWithClaims(raw, &model.GuestToken{}, func(t *jwt.Token) (any, error) {
+		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
+			return nil, fmt.Errorf("unexpected signing method: %v", t.Header["alg"])
 		}
 		return Secret, nil
 	})
 
 	if err == jwt.ErrTokenSignatureInvalid || err == jwt.ErrSignatureInvalid {
-		log.Println("token parse err", err)
 		return
 	}
+
 	if err != nil {
 		if token == nil {
 			return
 		}
-		log.Println("token parse 2", err)
 		if strings.Contains(err.Error(), "signature is invalid") {
 			return
 		}
-		claims, ok := token.Claims.(jwt.MapClaims)
+		claims, ok := token.Claims.(*model.GuestToken)
 		if ok {
-			l, _ := time.LoadLocation(claims["tz"].(string))
+			l, _ := time.LoadLocation(claims.Tz)
 
-			t0 = time.Unix(int64(claims["nbf"].(float64)), 0).In(l)
-			t1 = time.Unix(int64(claims["exp"].(float64)), 0).In(l)
+			t0 = time.Unix(claims.NotBefore.Unix(), 0).In(l)
+			t1 = time.Unix(claims.ExpiresAt.Unix(), 0).In(l)
+
+			devid = claims.DevId
+			devices = claims.Devices
+			addr = claims.Addr
 
 			err = fmt.Errorf("the Key is disabled now.\nThe valid period is\nsince %v\nuntil %v", t0, t1)
 			return
@@ -74,17 +112,20 @@ func DecodeKey(raw string) (devid string, addr string, t0 time.Time, t1 time.Tim
 		return
 	}
 
-	claims, ok := token.Claims.(jwt.MapClaims)
+	claims, ok := token.Claims.(*model.GuestToken)
 
-	l, _ := time.LoadLocation(claims["tz"].(string))
-	t0 = time.Unix(int64(claims["nbf"].(float64)), 0).In(l)
-	t1 = time.Unix(int64(claims["exp"].(float64)), 0).In(l)
+	l, _ := time.LoadLocation(claims.Tz)
+
+	t0 = time.Unix(claims.NotBefore.Unix(), 0).In(l)
+	t1 = time.Unix(claims.ExpiresAt.Unix(), 0).In(l)
 
 	if ok && token.Valid {
-		devid = claims["devid"].(string)
-		addr = claims["addr"].(string)
+		devid = claims.DevId
+		devices = claims.Devices
+		addr = claims.Addr
 		return
 	}
+
 	err = errors.New(fmt.Sprint("token claims failed or invalid", ok, token.Valid))
 	return
 }
