@@ -75,7 +75,8 @@ func SignMultiple(addr string, devs map[string]string, since int64, until int64,
 	return
 }
 
-func DecodeKey(raw string) (devid string, devices map[string]string, addr string, t0 time.Time, t1 time.Time, err error) {
+// todo: wipe it all!
+func DecodeKey(raw string) (devid string, devices map[string]string, addr string, t0 time.Time, t1 time.Time, tid int64, err error) {
 
 	token, err := jwt.ParseWithClaims(raw, &model.GuestToken{}, func(t *jwt.Token) (any, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
@@ -123,6 +124,7 @@ func DecodeKey(raw string) (devid string, devices map[string]string, addr string
 		devid = claims.DevId
 		devices = claims.Devices
 		addr = claims.Addr
+		tid = claims.NotifyTid
 		return
 	}
 
